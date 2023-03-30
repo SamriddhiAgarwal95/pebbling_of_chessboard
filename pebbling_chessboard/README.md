@@ -1,16 +1,9 @@
 # pebbling_chessboard
 
-A new Flutter project.
+This project explores a new dimension to the traditional Pebbling Chessboard game by moulding the problem
+into a live mobile game and extending the original problem of one quadrant to the second and fourth
+quadrants also
 
-## Getting Started
+## Game Overview
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://flutter.dev/docs/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://flutter.dev/docs/cookbook)
-
-For help getting started with Flutter, view our
-[online documentation](https://flutter.dev/docs), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+![Alt text](https://github.com/ayushi15092002/pebbling_of_chessboard/blob/main/pebbling_chessboard/assets/poster/Orange%20and%20Cream%20Playful%20and%20Illustrative%20Portrait%20University%20Research%20Poster.png)
