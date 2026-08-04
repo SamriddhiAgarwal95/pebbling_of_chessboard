@@ -29,6 +29,7 @@ class Prison {
            if(level == 11) return prison(48.0, 30.0, const Color.fromARGB(255, 33, 150, 243));
            if(level == 12) return prison(48.0, 55.0, const Color.fromARGB(255, 33, 150, 243));
            if(level == 13) return prison(94.0, 30.0, const Color.fromARGB(255, 33, 150, 243));
+           if(level == 14) return prison(94.0, 55.0, const Color.fromARGB(255, 33, 150, 243));
            if(level == 15) return prison(48.0, 80.0, const Color.fromARGB(255, 33, 150, 243));
         }
         return levelprisons(720.0, 14);

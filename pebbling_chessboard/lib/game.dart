@@ -31,6 +31,7 @@ class _GamePageState extends State<GamePage> {
     hasWon = false;
     position = 1;
 
+    // Levels 1-10 initialization (strictly same as original)
     if (widget.level <= 6) { 
       haveClone[56] = 1; 
     } else if (widget.level == 7 || widget.level == 8) { 
@@ -39,10 +40,22 @@ class _GamePageState extends State<GamePage> {
       haveClone[56] = 1; haveClone[57] = 1; 
     } else if (widget.level == 10) { 
       haveClone[56] = 1; haveClone[48] = 1; 
-    } else {
+    } 
+    // Levels 11-15 initialization
+    else if (widget.level == 11) {
+      haveClone[112] = 1;
+    } else if (widget.level == 12) {
+      haveClone[112] = 1; haveClone[113] = 1;
+    } else if (widget.level == 13) {
+      haveClone[112] = 1; haveClone[97] = 1;
+    } else if (widget.level == 14) {
+      haveClone[112] = 1; haveClone[113] = 1; haveClone[97] = 1; haveClone[98] = 1;
+    } else if (widget.level == 15) {
+      haveClone[111] = 1; haveClone[112] = 1; haveClone[113] = 1;
+    } 
+    else {
       if (widget.level > 10) {
         haveClone[112] = 1;
-        if (widget.level > 104) haveClone[113] = 1;
       }
     }
   }
@@ -87,8 +100,8 @@ class _GamePageState extends State<GamePage> {
                               ),
                               AspectRatio(aspectRatio: 1.0, child: _buildGridView()),
                               
-                              // Centered "YOU WON!" message for levels 1-10
-                              if (hasWon && widget.level <= 10)
+                              // Victory message overlay
+                              if (hasWon && widget.level <= 15)
                                 Center(
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -167,17 +180,16 @@ class _GamePageState extends State<GamePage> {
         haveClone[t2!] = 1;
         moves--;
         
-        // Victory check logic updated for Level 1-10
-        if (widget.level >= 1 && widget.level <= 10) {
+        // Victory check logic
+        if (widget.level >= 1 && widget.level <= 15) {
           if (_isPrisonEmpty()) {
             if (widget.level == 8) {
-              // Delay victory for level 8 as requested to ensure move completes visually
               Future.delayed(const Duration(milliseconds: 600), () {
-                if (mounted) {
-                  setState(() {
-                    hasWon = true;
-                  });
-                }
+                if (mounted) setState(() { hasWon = true; });
+              });
+            } else if (widget.level >= 11) {
+              Future.delayed(const Duration(milliseconds: 100), () {
+                if (mounted) setState(() { hasWon = true; });
               });
             } else {
               hasWon = true;
@@ -195,6 +207,7 @@ class _GamePageState extends State<GamePage> {
 
   List<int> _getPrisonIndicesForLevel() {
     switch (widget.level) {
+      // 1-10 logic kept same (including level 8 fix)
       case 1: return [56];
       case 2: return [56, 57];
       case 3: return [56, 48, 57];
@@ -202,10 +215,16 @@ class _GamePageState extends State<GamePage> {
       case 5: return [56, 48, 40];
       case 6: return [56, 57, 48, 40];
       case 7: return [56, 48]; 
-      case 8: return [56, 57, 58, 48, 40]; // Added 58 for Level 8 prison
+      case 8: return [56, 57, 58, 48, 40]; 
       case 9: return [56, 57]; 
       case 10: return [56, 48];
-      default: return [56, 48, 57];
+      // 11-15 prison indices
+      case 11: return [112];
+      case 12: return [112, 113];
+      case 13: return [112, 97];
+      case 14: return [112, 113, 97, 98];
+      case 15: return [111, 112, 113];
+      default: return widget.level > 10 ? [112] : [56, 48, 57];
     }
   }
 
