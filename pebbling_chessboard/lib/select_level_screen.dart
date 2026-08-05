@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:pebbling_chessboard/widgets/level_circle.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 int t = 0;
 class SelectLevelScreen extends StatefulWidget {
@@ -16,11 +17,17 @@ class SelectLevelScreenState extends State<SelectLevelScreen> {
 
   @override
   void initState() {
+    super.initState();
+    _loadUnlockedLevel();
     Timer(
         const Duration(milliseconds: 1),
         () => _scrollController
             .jumpTo(_scrollController.position.maxScrollExtent));
-    super.initState();
+  }
+
+  Future<void> _loadUnlockedLevel() async {
+    final prefs = await SharedPreferences.getInstance();
+    LevelCircleWidget.unlockedLevelNotifier.value = prefs.getInt('unlockedLevel') ?? 1;
   }
 
   @override

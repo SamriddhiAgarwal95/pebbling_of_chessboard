@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pebbling_chessboard/prison/prison.dart';
 import 'package:pebbling_chessboard/widgets/TextWidget.dart';
 import 'package:pebbling_chessboard/widgets/background.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class GamePage extends StatefulWidget {
   final int level;
@@ -27,7 +28,10 @@ class _GamePageState extends State<GamePage> {
   }
 
   void _initializeLevel() {
-    moves = 30;
+    // Moves grow slightly with level, but not too much to exceed board capacity (120 cells)
+    int extraMoves = widget.level > 20 ? (widget.level - 20) * 2 : 0;
+    if (extraMoves > 40) extraMoves = 40; // Cap moves so player has to be strategic
+    moves = 30 + extraMoves;
     hasWon = false;
     position = 1;
 
@@ -36,97 +40,13 @@ class _GamePageState extends State<GamePage> {
       haveClone[i] = 0;
     }
 
-    // Levels 1–10: pebbles placed exactly match _getPrisonIndicesForLevel
-    if (widget.level == 1) {
-      haveClone[56] = 1;
-    } else if (widget.level == 2) {
-      haveClone[56] = 1; haveClone[57] = 1;
-    } else if (widget.level == 3) {
-      haveClone[56] = 1; haveClone[48] = 1; haveClone[57] = 1;
-    } else if (widget.level == 4) {
-      haveClone[56] = 1; haveClone[48] = 1; haveClone[57] = 1; haveClone[49] = 1;
-    } else if (widget.level == 5) {
-      haveClone[56] = 1; haveClone[48] = 1; haveClone[40] = 1;
-    } else if (widget.level == 6) {
-      haveClone[56] = 1; haveClone[57] = 1; haveClone[48] = 1; haveClone[40] = 1;
-    } else if (widget.level == 7) {
-      haveClone[57] = 1; haveClone[48] = 1;
-    } else if (widget.level == 8) {
-      haveClone[56] = 1; haveClone[57] = 1; haveClone[58] = 1; haveClone[48] = 1; haveClone[40] = 1;
-    } else if (widget.level == 9) {
-      haveClone[56] = 1; haveClone[57] = 1;
-    } else if (widget.level == 10) {
-      haveClone[56] = 1; haveClone[48] = 1;
-    }
-    // Levels 11–15 initialization
-    else if (widget.level == 11) {
-      haveClone[112] = 1;
-    } else if (widget.level == 12) {
-      haveClone[112] = 1; haveClone[113] = 1;
-    } else if (widget.level == 13) {
-      haveClone[112] = 1; haveClone[97] = 1;
-    } else if (widget.level == 14) {
-      haveClone[112] = 1; haveClone[113] = 1; haveClone[97] = 1; haveClone[98] = 1;
-    } else if (widget.level == 15) {
-      haveClone[111] = 1; haveClone[112] = 1; haveClone[113] = 1;
-    }
-    // Levels 16–25: Properly scaled difficulty.
-    // Board: 15 cols x 8 rows. Col indices for row 7 (bottom): 105-119.
-    // Row 7 (bottom): [r7c5]=110,[r7c6]=111,[r7c7]=112,[r7c8]=113,[r7c9]=114
-    // Row 6:          [r6c5]=95, [r6c6]=96, [r6c7]=97, [r6c8]=98, [r6c9]=99
-    // Row 5:          [r5c5]=80, [r5c6]=81, [r5c7]=82, [r5c8]=83, [r5c9]=84
-    // Row 4:          [r4c5]=65, [r4c6]=66, [r4c7]=67, [r4c8]=68, [r4c9]=69
-    // Move rule (pos1): pebble at idx → (idx-cols, idx+1)  [up + right]
-    // Move rule (pos2): pebble at idx → (idx-cols, idx-1)  [up + left]
-    else if (widget.level == 16) {
-      // 3 pebbles - L-shape. 113 blocks 112's right escape.
-      // Solution: 113→pos1, 97 pos2→, 112→ (3 moves)
-      haveClone[112] = 1; haveClone[113] = 1; haveClone[97] = 1;
-    } else if (widget.level == 17) {
-      // 4 pebbles. 113 and 82 create crossing blocks.
-      // Solution: 113→, 82→, 97 pos2→, 112→ (4 moves)
-      haveClone[112] = 1; haveClone[113] = 1; haveClone[97] = 1; haveClone[82] = 1;
-    } else if (widget.level == 18) {
-      // 4 pebbles - vertical + branch. Requires pos2 direction.
-      // Solution: 98→, 82→, 97 pos2→, 112 pos2→ (4 moves)
-      haveClone[112] = 1; haveClone[97] = 1; haveClone[82] = 1; haveClone[98] = 1;
-    } else if (widget.level == 19) {
-      // 4 pebbles - 2x2 block at bottom corner.
-      // Solution: 98→, 113→, 97 pos2→, 112 pos2→ (4 moves)
-      haveClone[112] = 1; haveClone[113] = 1; haveClone[97] = 1; haveClone[98] = 1;
-    } else if (widget.level == 20) {
-      // 5 pebbles. 2x2 block + extra above-left.
-      // Solution: 98→, 113→, 97 pos2→, 82→, 112 pos2→ (5 moves)
-      haveClone[112] = 1; haveClone[113] = 1; haveClone[97] = 1; haveClone[98] = 1; haveClone[82] = 1;
-    } else if (widget.level == 21) {
-      // 5 pebbles. 2x2 block + extra to upper-right.
-      // Solution: 83→, 98→, 97 pos2→, 113→, 112 pos2→ (5 moves)
-      haveClone[112] = 1; haveClone[113] = 1; haveClone[97] = 1; haveClone[98] = 1; haveClone[83] = 1;
-    } else if (widget.level == 22) {
-      // 5 pebbles in staircase. Requires careful ordering.
-      // Solution: 82 pos2→, 83→, 97 pos1→, 98→, 112→ (5 moves)
-      haveClone[112] = 1; haveClone[113] = 1; haveClone[97] = 1; haveClone[82] = 1; haveClone[83] = 1;
-    } else if (widget.level == 23) {
-      // 6 pebbles - two stacks side by side.
-      // Solution: 82 pos2→, 83→, 97 pos1→, 98→, 112→, 113→ (6 moves)
-      haveClone[112] = 1; haveClone[113] = 1; haveClone[97] = 1; haveClone[98] = 1; haveClone[82] = 1; haveClone[83] = 1;
-    } else if (widget.level == 24) {
-      // 7 pebbles - 6-block + extra row.
-      // Solution: 67 pos2→, then solve 6-block (7 moves)
-      haveClone[112] = 1; haveClone[113] = 1; haveClone[97] = 1; haveClone[98] = 1;
-      haveClone[82] = 1; haveClone[83] = 1; haveClone[67] = 1;
-    } else if (widget.level == 25) {
-      // 8 pebbles - two full columns. Most complex.
-      // Solution: 67 pos2→, 68→, then solve 6-block (8 moves)
-      haveClone[112] = 1; haveClone[113] = 1; haveClone[97] = 1; haveClone[98] = 1;
-      haveClone[82] = 1; haveClone[83] = 1; haveClone[67] = 1; haveClone[68] = 1;
-    } else {
-      // Default for any level beyond 25
-      if (widget.level > 10) {
-        haveClone[112] = 1;
+    // Populate initial pebbles from the prison indices
+    List<int> initialPebbles = _getPrisonIndicesForLevel();
+    for (int idx in initialPebbles) {
+      if (idx >= 0 && idx < haveClone.length) {
+        haveClone[idx] = 1;
       }
     }
-
   }
 
   @override
@@ -162,11 +82,21 @@ class _GamePageState extends State<GamePage> {
                                     ? Image.asset('assets/images/board3.jpeg', fit: BoxFit.fill)
                                     : Image.asset("images/orange_board.png", package: 'flutter_chess_board', fit: BoxFit.cover),
                               ),
-                              Positioned(
-                                left: _getCageLeftOffset(width),
-                                bottom: 0,
-                                child: Prison().getPrison(widget.level),
-                              ),
+                              if (widget.level <= 20)
+                                Positioned(
+                                  left: _getCageLeftOffset(width),
+                                  bottom: 0,
+                                  child: Prison().getPrison(widget.level),
+                                )
+                              else
+                                Positioned.fill(
+                                  child: CustomPaint(
+                                    painter: DynamicCagePainter(
+                                      indices: _getPrisonIndicesForLevel(),
+                                      cols: 15,
+                                    ),
+                                  ),
+                                ),
                               AspectRatio(aspectRatio: 1.0, child: _buildGridView()),
                               
                               // Victory message overlay — shown for ALL levels
@@ -210,6 +140,7 @@ class _GamePageState extends State<GamePage> {
   Widget _buildGridView() {
     int cols = widget.level > 10 ? 15 : 8;
     return GridView.builder(
+      padding: EdgeInsets.zero,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: cols, childAspectRatio: widget.level > 10 ? 0.535 : 1.0),
       itemCount: haveClone.length,
@@ -251,6 +182,8 @@ class _GamePageState extends State<GamePage> {
         
         // ✅ Victory check — works for ALL levels
         if (_isPrisonEmpty()) {
+          _unlockNextLevel(widget.level + 1);
+          
           if (widget.level == 8) {
             Future.delayed(const Duration(milliseconds: 600), () {
               if (mounted) setState(() { hasWon = true; });
@@ -267,42 +200,87 @@ class _GamePageState extends State<GamePage> {
     }
   }
 
+  Future<void> _unlockNextLevel(int nextLevel) async {
+    final prefs = await SharedPreferences.getInstance();
+    int currentUnlocked = prefs.getInt('unlockedLevel') ?? 1;
+    if (nextLevel > currentUnlocked) {
+      await prefs.setInt('unlockedLevel', nextLevel);
+    }
+  }
+
   bool _isPrisonEmpty() {
     List<int> prison = _getPrisonIndicesForLevel();
     return prison.every((idx) => haveClone[idx] == 0);
   }
 
   List<int> _getPrisonIndicesForLevel() {
-    switch (widget.level) {
-      // Levels 1-10 (8x8 board)
-      case 1: return [56];
-      case 2: return [56, 57];
-      case 3: return [56, 48, 57];
-      case 4: return [56, 48, 57, 49];
-      case 5: return [56, 48, 40];
-      case 6: return [56, 57, 48, 40];
-      case 7: return [56, 48];
-      case 8: return [56, 57, 58, 48, 40];
-      case 9: return [56, 57];
-      case 10: return [56, 48];
-      // Levels 11-15 (15x8 board)
-      case 11: return [112];
-      case 12: return [112, 113];
-      case 13: return [112, 97];
-      case 14: return [112, 113, 97, 98];
-      case 15: return [111, 112, 113];
-      // Levels 16-25 — must match _initializeLevel exactly
-      case 16: return [112, 113, 97];
-      case 17: return [112, 113, 97, 82];
-      case 18: return [112, 97, 82, 98];
-      case 19: return [112, 113, 97, 98];
-      case 20: return [112, 113, 97, 98, 82];
-      case 21: return [112, 113, 97, 98, 83];
-      case 22: return [112, 113, 97, 82, 83];
-      case 23: return [112, 113, 97, 98, 82, 83];
-      case 24: return [112, 113, 97, 98, 82, 83, 67];
-      case 25: return [112, 113, 97, 98, 82, 83, 67, 68];
-      default: return widget.level > 10 ? [112] : [56, 48, 57];
+    if (widget.level <= 20) {
+      switch (widget.level) {
+        // Levels 1-10 (8x8 board)
+        case 1: return [56];
+        case 2: return [56, 57];
+        case 3: return [56, 48, 57];
+        case 4: return [56, 48, 57, 49];
+        case 5: return [56, 48, 40];
+        case 6: return [56, 57, 48, 40];
+        case 7: return [56, 48]; // Aligning with the prison logic
+        case 8: return [56, 57, 58, 48, 40];
+        case 9: return [56, 57];
+        case 10: return [56, 48];
+        // Levels 11-15 (15x8 board)
+        case 11: return [112];
+        case 12: return [112, 113];
+        case 13: return [112, 97];
+        case 14: return [112, 113, 97, 98];
+        case 15: return [111, 112, 113];
+        // Levels 16-20
+        case 16: return [112, 113, 97];
+        case 17: return [112, 113, 97, 82];
+        case 18: return [112, 97, 82, 98];
+        case 19: return [112, 113, 97, 98];
+        case 20: return [112, 113, 97, 98, 82];
+        default: return widget.level > 10 ? [112] : [56, 48, 57];
+      }
+    } else {
+      // Algorithmically generate prison for levels > 20
+      // Scale complexity as requested: Easy (2-3), Medium (4-5), Hard (5-6)
+      int numPebbles;
+      if (widget.level <= 30) {
+        numPebbles = 2 + (widget.level % 2); // Alternates 2 and 3 clones
+      } else if (widget.level <= 45) {
+        numPebbles = 4 + (widget.level % 2); // Alternates 4 and 5 clones
+      } else {
+        numPebbles = 5 + (widget.level % 2); // Alternates 5 and 6 clones
+      }
+      
+      Set<int> prison = {112};
+      // Keep shape somewhat compact but random
+      List<int> candidates = [112 - 15, 112 - 1, 112 + 1]; 
+      
+      int seed = widget.level;
+      int nextRandom() {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed;
+      }
+      
+      while (prison.length < numPebbles && candidates.isNotEmpty) {
+        int rIdx = nextRandom() % candidates.length;
+        int chosen = candidates.removeAt(rIdx);
+        
+        if (!prison.contains(chosen)) {
+          int r = chosen ~/ 15;
+          int c = chosen % 15;
+          // Constrain the shape to stay in lower-middle section so player has room to split pebbles upwards
+          if (r >= 4 && r <= 7 && c >= 4 && c <= 10) {
+            prison.add(chosen);
+            if (r > 0) candidates.add(chosen - 15);
+            if (r < 7) candidates.add(chosen + 15);
+            if (c > 0) candidates.add(chosen - 1);
+            if (c < 14) candidates.add(chosen + 1);
+          }
+        }
+      }
+      return prison.toList();
     }
   }
 
@@ -333,4 +311,57 @@ class _GamePageState extends State<GamePage> {
       ),
     );
   }
+}
+
+class DynamicCagePainter extends CustomPainter {
+  final List<int> indices;
+  final int cols;
+
+  DynamicCagePainter({required this.indices, required this.cols});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    Paint paint = Paint()
+      ..color = const Color.fromARGB(255, 33, 150, 243)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..strokeJoin = StrokeJoin.miter
+      ..strokeCap = StrokeCap.square;
+
+    // Use 0.535 as the aspect ratio based on _buildGridView logic
+    double cellWidth = size.width / cols;
+    double cellHeight = cellWidth / 0.535; 
+
+    Path path = Path();
+    for (int index in indices) {
+      int r = index ~/ cols;
+      int c = index % cols;
+
+      double left = c * cellWidth;
+      double top = r * cellHeight;
+      double right = (c + 1) * cellWidth;
+      double bottom = (r + 1) * cellHeight;
+
+      if (!indices.contains(index - cols)) {
+        path.moveTo(left, top);
+        path.lineTo(right, top);
+      }
+      if (!indices.contains(index + cols)) {
+        path.moveTo(left, bottom);
+        path.lineTo(right, bottom);
+      }
+      if (!indices.contains(index - 1) || c == 0) {
+        path.moveTo(left, top);
+        path.lineTo(left, bottom);
+      }
+      if (!indices.contains(index + 1) || c == cols - 1) {
+        path.moveTo(right, top);
+        path.lineTo(right, bottom);
+      }
+    }
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
