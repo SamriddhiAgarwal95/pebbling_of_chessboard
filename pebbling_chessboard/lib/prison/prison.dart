@@ -47,8 +47,15 @@ class Prison {
   }
 
   int cagePosition(int level) {
-    if (level < 15) return 0;
-    return 1;
+    // Returns the column-zone (1, 2, or 3) used by _getCageLeftOffset in game.dart
+    switch (level) {
+      case 11: return 1;
+      case 12: return 1;
+      case 13: return 2;
+      case 14: return 2;
+      case 15: return 1;
+      default: return 1;
+    }
   }
 }
 
