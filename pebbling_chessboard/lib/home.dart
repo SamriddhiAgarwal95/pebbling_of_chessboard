@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:pebbling_chessboard/select_level_screen.dart';
 import 'package:pebbling_chessboard/widgets/ButtonWidget.dart';
 import 'package:pebbling_chessboard/widgets/TextWidget.dart';
+import 'help_screen.dart';
 import 'package:pebbling_chessboard/widgets/background.dart';
+
 
 
 class MyHomePage extends StatefulWidget {
@@ -38,7 +40,12 @@ class _MyHomePageState extends State<MyHomePage> {
               },
                 ),
               SizedBox(height: height*0.03),
-              ButtonWidget(title: 'Help',onPressed: (){},)
+              ButtonWidget(title: 'Help',onPressed: (){
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const HelpScreen()),
+                  );
+                },)
             ],
           ),
         ),

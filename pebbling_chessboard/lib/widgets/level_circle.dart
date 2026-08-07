@@ -9,7 +9,8 @@ var size, height, width;
 
 class LevelCircleWidget extends StatelessWidget {
   final int levelNumber;
-  static ValueNotifier<int> unlockedLevelNotifier = ValueNotifier<int>(1);
+  // Initialize to a large number to unlock all levels by default
+  static ValueNotifier<int> unlockedLevelNotifier = ValueNotifier<int>(395);
 
   const LevelCircleWidget({
     Key? key,
@@ -25,7 +26,8 @@ class LevelCircleWidget extends StatelessWidget {
     return ValueListenableBuilder<int>(
       valueListenable: unlockedLevelNotifier,
       builder: (context, unlockedLevel, child) {
-        bool isLocked = levelNumber > unlockedLevel;
+        // Force isLocked to false to ensure all levels are unlocked as requested
+        bool isLocked = false; 
 
         return GestureDetector(
           child: Container(
@@ -49,9 +51,9 @@ class LevelCircleWidget extends StatelessWidget {
                 context,
                 MaterialPageRoute(builder: (context) => LevelScreen(level: levelNumber)),
               );
-              // Refresh the lock state when returning from the game screen
+              // Refresh is not strictly necessary if all are unlocked, but kept for consistency
               final prefs = await SharedPreferences.getInstance();
-              unlockedLevelNotifier.value = prefs.getInt('unlockedLevel') ?? 1;
+              unlockedLevelNotifier.value = prefs.getInt('unlockedLevel') ?? 395;
             } else {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -64,4 +66,8 @@ class LevelCircleWidget extends StatelessWidget {
       },
     );
   }
+}
+
+extension on ValueNotifier<int> {
+  get value_listenable => this;
 }

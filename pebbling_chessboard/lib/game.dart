@@ -3,6 +3,7 @@ import 'package:pebbling_chessboard/prison/prison.dart';
 import 'package:pebbling_chessboard/widgets/TextWidget.dart';
 import 'package:pebbling_chessboard/widgets/background.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'solver.dart';
 
 class GamePage extends StatefulWidget {
   final int level;
@@ -14,10 +15,20 @@ class GamePage extends StatefulWidget {
 
 class _GamePageState extends State<GamePage> {
   late List<int> haveClone;
+  late List<int> currentPrison;
   var size, height, width;
   int moves = 0;
   int position = 1; 
   bool hasWon = false;
+  int _hintIndex = -1;
+  bool _isAutoPlaying = false;
+  int _failedAttempts = 0;
+
+  int get availableQuads {
+    if (widget.level <= 100) return 1;
+    if (widget.level <= 250) return 2;
+    return 4;
+  }
 
   @override
   void initState() {
@@ -28,12 +39,12 @@ class _GamePageState extends State<GamePage> {
   }
 
   void _initializeLevel() {
-    // Moves grow slightly with level, but not too much to exceed board capacity (120 cells)
-    int extraMoves = widget.level > 20 ? (widget.level - 20) * 2 : 0;
-    if (extraMoves > 40) extraMoves = 40; // Cap moves so player has to be strategic
-    moves = 30 + extraMoves;
     hasWon = false;
     position = 1;
+    _hintIndex = -1;
+    _isAutoPlaying = false;
+
+    currentPrison = _getPrisonIndicesForLevel();
 
     // ✅ Reset all cells to 0 before placing pebbles (fixes restart & stale pebble bugs)
     for (int i = 0; i < haveClone.length; i++) {
@@ -41,10 +52,21 @@ class _GamePageState extends State<GamePage> {
     }
 
     // Populate initial pebbles from the prison indices
-    List<int> initialPebbles = _getPrisonIndicesForLevel();
-    for (int idx in initialPebbles) {
+    for (int idx in currentPrison) {
       if (idx >= 0 && idx < haveClone.length) {
         haveClone[idx] = 1;
+      }
+    }
+
+    if (widget.level <= 20) {
+      int extraMoves = widget.level > 10 ? (widget.level - 10) * 2 : 0;
+      moves = 30 + extraMoves;
+    } else {
+      var solution = Solver.solveBoard(haveClone, currentPrison, 15, 30, availableQuads);
+      if (solution != null) {
+        moves = solution.length + 10;
+      } else {
+        moves = 40;
       }
     }
   }
@@ -92,7 +114,7 @@ class _GamePageState extends State<GamePage> {
                                 Positioned.fill(
                                   child: CustomPaint(
                                     painter: DynamicCagePainter(
-                                      indices: _getPrisonIndicesForLevel(),
+                                      indices: currentPrison,
                                       cols: 15,
                                     ),
                                   ),
@@ -103,19 +125,63 @@ class _GamePageState extends State<GamePage> {
                               if (hasWon)
                                 Center(
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                                     decoration: BoxDecoration(
-                                      color: Colors.black.withOpacity(0.5),
-                                      borderRadius: BorderRadius.circular(10),
+                                      color: Colors.black.withOpacity(0.8),
+                                      borderRadius: BorderRadius.circular(15),
                                     ),
-                                    child: textWidget("YOU WON!", const Color(0xffFFA51E), Colors.black, 60, 3, "Rye"),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        textWidget("YOU WON!", const Color(0xffFFA51E), Colors.transparent, 40, 1, "Rye"),
+                                        const SizedBox(height: 20),
+                                        ElevatedButton(
+                                          onPressed: () {
+                                            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => GamePage(level: widget.level + 1)));
+                                          },
+                                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xffFFA51E)),
+                                          child: const Text("Next Level", style: TextStyle(color: Colors.black, fontSize: 20)),
+                                        )
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              if (moves <= 0 && !hasWon && !_isAutoPlaying)
+                                Center(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                                    decoration: BoxDecoration(color: Colors.black.withOpacity(0.8), borderRadius: BorderRadius.circular(15)),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        textWidget("OUT OF MOVES", Colors.red, Colors.transparent, 30, 1, "Rye"),
+                                        const SizedBox(height: 20),
+                                        ElevatedButton(
+                                          onPressed: () {
+                                            setState(() { _failedAttempts++; _initializeLevel(); });
+                                          },
+                                          child: const Text("Retry", style: TextStyle(fontSize: 18)),
+                                        ),
+                                        if (_failedAttempts >= 3) ...[
+                                          const SizedBox(height: 10),
+                                          ElevatedButton(
+                                            onPressed: () {
+                                              _unlockNextLevel(widget.level + 1);
+                                              Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => GamePage(level: widget.level + 1)));
+                                            },
+                                            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+                                            child: const Text("Skip Level", style: TextStyle(fontSize: 18, color: Colors.white)),
+                                          ),
+                                        ]
+                                      ],
+                                    ),
                                   ),
                                 ),
                             ],
                           ),
                         )),
                     const SizedBox(height: 20),
-                    if (widget.level > 10) _buildDirectionSwitcher(),
+                    if (availableQuads > 1) _buildDirectionSwitcher(),
                     _buildMovesDisplay(width),
                     const SizedBox(height: 20),
                   ],
@@ -150,17 +216,24 @@ class _GamePageState extends State<GamePage> {
   }
 
   Widget _buildPebble(int index, int cols) {
+    bool isHint = index == _hintIndex;
     return Padding(
       padding: EdgeInsets.all(widget.level > 10 ? 2.0 : 7.0),
       child: GestureDetector(
         onTap: () => _onPebbleTap(index, cols),
-        child: CircleAvatar(backgroundColor: Colors.red[800]),
+        child: Container(
+          decoration: isHint ? BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [BoxShadow(color: Colors.yellow, blurRadius: 10, spreadRadius: 2)],
+          ) : null,
+          child: CircleAvatar(backgroundColor: isHint ? Colors.yellow : Colors.red[800]),
+        ),
       ),
     );
   }
 
-  void _onPebbleTap(int index, int cols) {
-    if (hasWon || moves <= 0) return;
+  void _onPebbleTap(int index, int cols, {bool isAuto = false}) {
+    if (hasWon || (!isAuto && moves <= 0) || (_isAutoPlaying && !isAuto)) return;
 
     int r = index ~/ cols;
     int c = index % cols;
@@ -169,8 +242,11 @@ class _GamePageState extends State<GamePage> {
     if (widget.level <= 10) {
       if (r > 0 && c < 7) { t1 = index - 8; t2 = index + 1; }
     } else {
+      int maxR = (haveClone.length ~/ cols) - 1;
       if (position == 1 && r > 0 && c < cols - 1) { t1 = index - cols; t2 = index + 1; }
-      else if (position == 2 && r > 0 && c > 0) { t1 = index - cols; t2 = index - 1; }
+      else if (position == 2 && availableQuads >= 2 && r > 0 && c > 0) { t1 = index - cols; t2 = index - 1; }
+      else if (position == 3 && availableQuads >= 4 && r < maxR && c < cols - 1) { t1 = index + cols; t2 = index + 1; }
+      else if (position == 4 && availableQuads >= 4 && r < maxR && c > 0) { t1 = index + cols; t2 = index - 1; }
     }
 
     if (t1 != null && t2 != null && haveClone[t1] == 0 && haveClone[t2] == 0) {
@@ -183,18 +259,7 @@ class _GamePageState extends State<GamePage> {
         // ✅ Victory check — works for ALL levels
         if (_isPrisonEmpty()) {
           _unlockNextLevel(widget.level + 1);
-          
-          if (widget.level == 8) {
-            Future.delayed(const Duration(milliseconds: 600), () {
-              if (mounted) setState(() { hasWon = true; });
-            });
-          } else if (widget.level >= 11) {
-            Future.delayed(const Duration(milliseconds: 100), () {
-              if (mounted) setState(() { hasWon = true; });
-            });
-          } else {
-            hasWon = true;
-          }
+          if (mounted) setState(() { hasWon = true; _isAutoPlaying = false; });
         }
       });
     }
@@ -209,8 +274,7 @@ class _GamePageState extends State<GamePage> {
   }
 
   bool _isPrisonEmpty() {
-    List<int> prison = _getPrisonIndicesForLevel();
-    return prison.every((idx) => haveClone[idx] == 0);
+    return currentPrison.every((idx) => haveClone[idx] == 0);
   }
 
   List<int> _getPrisonIndicesForLevel() {
@@ -242,20 +306,9 @@ class _GamePageState extends State<GamePage> {
         default: return widget.level > 10 ? [112] : [56, 48, 57];
       }
     } else {
-      // Algorithmically generate prison for levels > 20
-      // Scale complexity as requested: Easy (2-3), Medium (4-5), Hard (5-6)
       int numPebbles;
-      if (widget.level <= 30) {
-        numPebbles = 2 + (widget.level % 2); // Alternates 2 and 3 clones
-      } else if (widget.level <= 45) {
-        numPebbles = 4 + (widget.level % 2); // Alternates 4 and 5 clones
-      } else {
-        numPebbles = 5 + (widget.level % 2); // Alternates 5 and 6 clones
-      }
-      
-      Set<int> prison = {112};
-      // Keep shape somewhat compact but random
-      List<int> candidates = [112 - 15, 112 - 1, 112 + 1]; 
+      if (widget.level <= 30) numPebbles = 2;
+      else numPebbles = 3;
       
       int seed = widget.level;
       int nextRandom() {
@@ -263,35 +316,66 @@ class _GamePageState extends State<GamePage> {
         return seed;
       }
       
-      while (prison.length < numPebbles && candidates.isNotEmpty) {
-        int rIdx = nextRandom() % candidates.length;
-        int chosen = candidates.removeAt(rIdx);
+      int attempts = 0;
+      while (attempts < 20) {
+        attempts++;
+        Set<int> prison = {112};
+        List<int> candidates = [112 - 15, 112 - 1, 112 + 1]; 
         
-        if (!prison.contains(chosen)) {
-          int r = chosen ~/ 15;
-          int c = chosen % 15;
-          // Constrain the shape to stay in lower-middle section so player has room to split pebbles upwards
-          if (r >= 4 && r <= 7 && c >= 4 && c <= 10) {
-            prison.add(chosen);
-            if (r > 0) candidates.add(chosen - 15);
-            if (r < 7) candidates.add(chosen + 15);
-            if (c > 0) candidates.add(chosen - 1);
-            if (c < 14) candidates.add(chosen + 1);
+        while (prison.length < numPebbles && candidates.isNotEmpty) {
+          int rIdx = nextRandom() % candidates.length;
+          int chosen = candidates.removeAt(rIdx);
+          
+          if (!prison.contains(chosen)) {
+            int r = chosen ~/ 15;
+            int c = chosen % 15;
+            if (r >= 4 && r <= 7 && c >= 4 && c <= 10) {
+              prison.add(chosen);
+              if (r > 0) candidates.add(chosen - 15);
+              if (r < 7) candidates.add(chosen + 15);
+              if (c > 0) candidates.add(chosen - 1);
+              if (c < 14) candidates.add(chosen + 1);
+            }
           }
         }
+        
+        List<int> tempBoard = List.filled(120, 0);
+        for (int p in prison) tempBoard[p] = 1;
+        var solution = Solver.solveBoard(tempBoard, prison.toList(), 15, 18, availableQuads);
+        if (solution != null) {
+          return prison.toList();
+        }
       }
-      return prison.toList();
+      
+      // Fallback if all attempts fail
+      return [112, 113, 97];
     }
   }
 
   Widget _buildDirectionSwitcher() {
+    IconData getIconForPosition() {
+      switch (position) {
+        case 1: return Icons.north_east;
+        case 2: return Icons.north_west;
+        case 3: return Icons.south_east;
+        case 4: return Icons.south_west;
+        default: return Icons.north_east;
+      }
+    }
+    
     return Column(
       children: [
         RawMaterialButton(
-          onPressed: () => setState(() { position = position == 1 ? 2 : 1; }),
+          onPressed: () => setState(() {
+            if (availableQuads == 2) {
+              position = position == 1 ? 2 : 1;
+            } else if (availableQuads == 4) {
+              position = position == 4 ? 1 : position + 1;
+            }
+          }),
           elevation: 4.0, fillColor: Colors.white,
           shape: const CircleBorder(), padding: const EdgeInsets.all(10),
-          child: Icon(position == 1 ? Icons.north_east : Icons.north_west, color: Colors.black, size: 30),
+          child: Icon(getIconForPosition(), color: Colors.black, size: 30),
         ),
         const SizedBox(height: 15),
       ],
@@ -299,17 +383,76 @@ class _GamePageState extends State<GamePage> {
   }
 
   Widget _buildMovesDisplay(double width) {
-    return Container(
-      width: width * 0.45,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(15)),
-      child: Column(
-        children: [
-          textWidget("MOVES", Colors.white, Colors.black, 14, 1, "Sans Francisco"),
-          textWidget(moves.toString(), const Color(0xffFFA51E), Colors.black, 26, 1, "Sans Francisco"),
-        ],
-      ),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        IconButton(
+          onPressed: _showHint,
+          icon: const Icon(Icons.lightbulb, color: Colors.yellow, size: 30),
+          tooltip: "Hint",
+        ),
+        Container(
+          width: width * 0.45,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(15)),
+          child: Column(
+            children: [
+              textWidget("MOVES", Colors.white, Colors.black, 14, 1, "Sans Francisco"),
+              textWidget(moves.toString(), const Color(0xffFFA51E), Colors.black, 26, 1, "Sans Francisco"),
+            ],
+          ),
+        ),
+        IconButton(
+          onPressed: _autoSolve,
+          icon: const Icon(Icons.smart_toy, color: Colors.blue, size: 30),
+          tooltip: "Show Solution",
+        ),
+      ],
     );
+  }
+
+  void _showHint() {
+    if (moves <= 0 || hasWon) return;
+    var solution = Solver.solveBoard(haveClone, currentPrison, widget.level > 10 ? 15 : 8, 12, availableQuads);
+    if (solution != null && solution.isNotEmpty) {
+      setState(() { _hintIndex = solution.first.index; });
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) setState(() { _hintIndex = -1; });
+      });
+    } else {
+      // Fallback: highlight any pebble in the prison
+      for (int idx in currentPrison) {
+        if (haveClone[idx] == 1) {
+          setState(() { _hintIndex = idx; });
+          Future.delayed(const Duration(seconds: 2), () {
+            if (mounted) setState(() { _hintIndex = -1; });
+          });
+          break;
+        }
+      }
+    }
+  }
+
+  void _autoSolve() async {
+    if (hasWon || _isAutoPlaying) return;
+    setState(() { _isAutoPlaying = true; _hintIndex = -1; });
+    while (_isAutoPlaying && !_isPrisonEmpty()) {
+      var solution = Solver.solveBoard(haveClone, currentPrison, widget.level > 10 ? 15 : 8, 14, availableQuads);
+      if (solution == null || solution.isEmpty) {
+        if (mounted) {
+          setState(() { _isAutoPlaying = false; });
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('State too complex to auto-solve. Please restart level.')));
+        }
+        break;
+      }
+      
+      Move nextMove = solution.first;
+      if (mounted) setState(() { position = nextMove.position; });
+      await Future.delayed(const Duration(milliseconds: 300));
+      
+      if (mounted) _onPebbleTap(nextMove.index, widget.level > 10 ? 15 : 8, isAuto: true);
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
   }
 }
 
