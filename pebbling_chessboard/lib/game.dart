@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pebbling_chessboard/prison/prison.dart';
 import 'package:pebbling_chessboard/widgets/TextWidget.dart';
+import 'package:pebbling_chessboard/widgets/particle_effect.dart';
 import 'package:pebbling_chessboard/widgets/background.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'solver.dart';
@@ -22,7 +23,10 @@ class _GamePageState extends State<GamePage> {
   bool hasWon = false;
   int _hintIndex = -1;
   bool _isAutoPlaying = false;
-  int _failedAttempts = 0;
+  List<Map<String, dynamic>> _moveHistory = [];
+
+  // Particle effect state
+  List<ParticleInfo> _particleInfos = [];
 
   int get availableQuads {
     if (widget.level <= 100) return 1;
@@ -77,6 +81,7 @@ class _GamePageState extends State<GamePage> {
     height = size.height;
     width = size.width;
 
+
     return Scaffold(
         appBar: AppBar(
           title: textWidget("Level ${widget.level}", Colors.white, Colors.white, width * 0.08, 1, "Sans Francisco"),
@@ -120,6 +125,18 @@ class _GamePageState extends State<GamePage> {
                                   ),
                                 ),
                               AspectRatio(aspectRatio: 1.0, child: _buildGridView()),
+            // Particle bursts overlay
+            for (var info in _particleInfos)
+              ParticleBurst(
+                key: info.key,
+                position: info.position,
+                cellSize: info.cellSize,
+                onCompleted: () {
+                  setState(() {
+                    _particleInfos.removeWhere((i) => i.key == info.key);
+                  });
+                },
+              ),
                               
                               // Victory message overlay — shown for ALL levels
                               if (hasWon)
@@ -157,22 +174,17 @@ class _GamePageState extends State<GamePage> {
                                         textWidget("OUT OF MOVES", Colors.red, Colors.transparent, 30, 1, "Rye"),
                                         const SizedBox(height: 20),
                                         ElevatedButton(
-                                          onPressed: () {
-                                            setState(() { _failedAttempts++; _initializeLevel(); });
-                                          },
+                                          onPressed: _initializeLevel,
                                           child: const Text("Retry", style: TextStyle(fontSize: 18)),
                                         ),
-                                        if (_failedAttempts >= 3) ...[
-                                          const SizedBox(height: 10),
-                                          ElevatedButton(
-                                            onPressed: () {
-                                              _unlockNextLevel(widget.level + 1);
-                                              Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => GamePage(level: widget.level + 1)));
-                                            },
-                                            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
-                                            child: const Text("Skip Level", style: TextStyle(fontSize: 18, color: Colors.white)),
-                                          ),
-                                        ]
+                                        ElevatedButton(
+                                          onPressed: () {
+                                            _unlockNextLevel(widget.level + 1);
+                                            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => GamePage(level: widget.level + 1)));
+                                          },
+                                          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+                                          child: const Text("Skip Level", style: TextStyle(fontSize: 18, color: Colors.white)),
+                                        ),
                                       ],
                                     ),
                                   ),
@@ -240,29 +252,90 @@ class _GamePageState extends State<GamePage> {
     int? t1, t2;
 
     if (widget.level <= 10) {
-      if (r > 0 && c < 7) { t1 = index - 8; t2 = index + 1; }
+      // 8x8 board: only two possible moves (up-right) based on original game rules
+      if (r > 0 && c < cols - 1) {
+        t1 = index - cols; // up
+        t2 = index + 1;    // right
+      }
     } else {
+      // 15x8 board: handle all four diagonal directions based on current position
       int maxR = (haveClone.length ~/ cols) - 1;
-      if (position == 1 && r > 0 && c < cols - 1) { t1 = index - cols; t2 = index + 1; }
-      else if (position == 2 && availableQuads >= 2 && r > 0 && c > 0) { t1 = index - cols; t2 = index - 1; }
-      else if (position == 3 && availableQuads >= 4 && r < maxR && c < cols - 1) { t1 = index + cols; t2 = index + 1; }
-      else if (position == 4 && availableQuads >= 4 && r < maxR && c > 0) { t1 = index + cols; t2 = index - 1; }
+      if (position == 1 && r > 0 && c < cols - 1) {
+        // north-east
+        t1 = index - cols; // up
+        t2 = index + 1;    // right
+      } else if (position == 2 && r > 0 && c > 0) {
+        // north-west
+        t1 = index - cols; // up
+        t2 = index - 1;    // left
+      } else if (position == 3 && r < maxR && c < cols - 1) {
+        // south-east
+        t1 = index + cols; // down
+        t2 = index + 1;    // right
+      } else if (position == 4 && r < maxR && c > 0) {
+        // south-west
+        t1 = index + cols; // down
+        t2 = index - 1;    // left
+      }
     }
 
-    if (t1 != null && t2 != null && haveClone[t1] == 0 && haveClone[t2] == 0) {
-      setState(() {
-        haveClone[index] = 0;
-        haveClone[t1!] = 1;
-        haveClone[t2!] = 1;
-        moves--;
-        
-        // ✅ Victory check — works for ALL levels
-        if (_isPrisonEmpty()) {
-          _unlockNextLevel(widget.level + 1);
-          if (mounted) setState(() { hasWon = true; _isAutoPlaying = false; });
-        }
-      });
+    // Validate that both target cells exist and are empty before performing the move
+    if (t1 != null && t2 != null) {
+      if (haveClone[t1] != 0 || haveClone[t2] != 0) {
+        // One of the destination cells is occupied – cancel move
+        return;
+      }
     }
+
+    // Record current state before performing move for undo
+    _moveHistory.add({
+      'haveClone': List<int>.from(haveClone),
+      'moves': moves,
+      'position': position,
+      'hasWon': hasWon,
+    });
+
+    // Add particle effect at original pebble location
+    _addParticleInfo(r, c, cols);
+    setState(() {
+      haveClone[index] = 0;
+      haveClone[t1!] = 1;
+      haveClone[t2!] = 1;
+      moves--;
+      
+      // ✅ Victory check — works for ALL levels
+      if (_isPrisonEmpty()) {
+        _unlockNextLevel(widget.level + 1);
+        if (mounted) setState(() { hasWon = true; _isAutoPlaying = false; });
+      }
+    });
+
+  }
+
+  void _undoMove() {
+    if (_moveHistory.isEmpty) return;
+    setState(() {
+      final lastState = _moveHistory.removeLast();
+      haveClone = List<int>.from(lastState['haveClone']);
+      moves = lastState['moves'];
+      position = lastState['position'];
+      hasWon = lastState['hasWon'];
+      _particleInfos.clear(); // Optional: clear particles on undo
+    });
+  }
+
+  // Fields to store cell dimensions for particle positioning
+
+  void _addParticleInfo(int row, int col, int cols) {
+    // Compute cell dimensions based on current board configuration
+    double cellWidth = widget.level > 10 ? 900.0 / cols : 400.0 / cols;
+    double aspect = widget.level > 10 ? 0.535 : 1.0;
+    double cellHeight = cellWidth / aspect;
+    final pos = Offset(col * cellWidth, row * cellHeight);
+    final info = ParticleInfo(position: pos, cellSize: cellWidth, key: UniqueKey());
+    setState(() {
+      _particleInfos.add(info);
+    });
   }
 
   Future<void> _unlockNextLevel(int nextLevel) async {
@@ -366,13 +439,15 @@ class _GamePageState extends State<GamePage> {
     return Column(
       children: [
         RawMaterialButton(
-          onPressed: () => setState(() {
-            if (availableQuads == 2) {
-              position = position == 1 ? 2 : 1;
-            } else if (availableQuads == 4) {
-              position = position == 4 ? 1 : position + 1;
-            }
-          }),
+          onPressed: () {
+            setState(() {
+              if (availableQuads == 2) {
+                position = position == 1 ? 2 : 1;
+              } else if (availableQuads == 4) {
+                position = position == 4 ? 1 : position + 1;
+              }
+            });
+          },
           elevation: 4.0, fillColor: Colors.white,
           shape: const CircleBorder(), padding: const EdgeInsets.all(10),
           child: Icon(getIconForPosition(), color: Colors.black, size: 30),
@@ -390,6 +465,12 @@ class _GamePageState extends State<GamePage> {
           onPressed: _showHint,
           icon: const Icon(Icons.lightbulb, color: Colors.yellow, size: 30),
           tooltip: "Hint",
+        ),
+        // Undo button
+        IconButton(
+          onPressed: _undoMove,
+          icon: const Icon(Icons.undo, color: Colors.orange, size: 30),
+          tooltip: "Undo",
         ),
         Container(
           width: width * 0.45,
@@ -471,7 +552,6 @@ class DynamicCagePainter extends CustomPainter {
       ..strokeJoin = StrokeJoin.miter
       ..strokeCap = StrokeCap.square;
 
-    // Use 0.535 as the aspect ratio based on _buildGridView logic
     double cellWidth = size.width / cols;
     double cellHeight = cellWidth / 0.535; 
 
@@ -506,5 +586,16 @@ class DynamicCagePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return true;
+  }
+}
+
+// Helper class for particle effect tracking
+class ParticleInfo {
+  final Offset position;
+  final double cellSize;
+  final UniqueKey key;
+
+  ParticleInfo({required this.position, required this.cellSize, required this.key});
 }
