@@ -7,11 +7,13 @@ import 'package:pebbling_chessboard/widgets/particle_effect.dart';
 import 'package:pebbling_chessboard/widgets/background.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'solver.dart';
+import 'package:pebbling_chessboard/ai_player.dart';
 
 class GamePage extends StatefulWidget {
   final int level;
   final bool isMultiplayer;
-  const GamePage({Key? key, required this.level, this.isMultiplayer = false}) : super(key: key);
+  final bool isVsComputer;
+  const GamePage({Key? key, required this.level, this.isMultiplayer = false, this.isVsComputer = false}) : super(key: key);
 
   @override
   State<GamePage> createState() => _GamePageState();
@@ -29,6 +31,7 @@ class _GamePageState extends State<GamePage> {
   bool hasWon = false;
   int _hintIndex = -1;
   bool _isAutoPlaying = false;
+  bool _isAITurn = false; // true while AI is making its move
   List<Map<String, dynamic>> _moveHistory = [];
   // Multiplayer tracking
   int currentPlayer = 1;
@@ -135,7 +138,63 @@ class _GamePageState extends State<GamePage> {
             child: Center(
               child: SingleChildScrollView(
                 child: Column(
-                  children: [        // Turn indicator for multiplayer
+                  children: [
+        // VS Computer turn banner
+        if (widget.isVsComputer)
+          Column(
+            children: [
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: _isAITurn
+                        ? [const Color(0xff1a1a2e), const Color(0xff16213e)]
+                        : [const Color(0xff2d6a4f), const Color(0xff1b4332)],
+                  ),
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _isAITurn ? Colors.blueAccent.withOpacity(0.4) : Colors.greenAccent.withOpacity(0.4),
+                      blurRadius: 12,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      _isAITurn ? Icons.smart_toy : Icons.person,
+                      color: _isAITurn ? Colors.lightBlueAccent : Colors.greenAccent,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      _isAITurn ? '🤖 AI is thinking...' : '👤 Your Turn',
+                      style: TextStyle(
+                        color: _isAITurn ? Colors.lightBlueAccent : Colors.greenAccent,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text("Your Score: $player1Score", style: const TextStyle(color: Colors.white, fontSize: 16)),
+                  const SizedBox(width: 20),
+                  Text("AI Score: $player2Score", style: const TextStyle(color: Colors.white, fontSize: 16)),
+                ],
+              ),
+            ],
+          ),
+        // Turn indicator for multiplayer
         if (widget.isMultiplayer)
           Padding(
             padding: const EdgeInsets.all(8.0),
@@ -158,7 +217,7 @@ class _GamePageState extends State<GamePage> {
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Text('Turn time: $_turnTimeRemaining s', style: const TextStyle(color: Colors.white, fontSize: 16)),
-          ),    
+          ),
                     SizedBox(height: widget.level > 10 ? 10 : height * 0.1),
                     SizedBox(
                         width: widget.level > 10 ? 900 : 400,
@@ -309,7 +368,9 @@ class _GamePageState extends State<GamePage> {
   }
 
   void _onPebbleTap(int index, int cols, {bool isAuto = false}) {
+    // Block human taps during AI turn (but allow isAuto calls from AI/autoSolve)
     if (hasWon || (!isAuto && moves <= 0) || (_isAutoPlaying && !isAuto)) return;
+    if (widget.isVsComputer && _isAITurn && !isAuto) return;
 
     int r = index ~/ cols;
     int c = index % cols;
@@ -370,25 +431,47 @@ class _GamePageState extends State<GamePage> {
         haveClone[t2!] = 1;
         moves--;
         // Update scores and switch turn in multiplayer mode
-      // Multiplayer logic: score only when a pebble leaves the prison
-      if (widget.isMultiplayer) {
-        // Increment score if the moved pebble originated from the prison area
+      // Multiplayer and VS Computer score logic: score only when a pebble leaves the prison
+      if (widget.isMultiplayer || widget.isVsComputer) {
         if (currentPrison.contains(index)) {
-          if (currentPlayer == 1) {
-            player1Score++;
+          if (widget.isMultiplayer) {
+            if (currentPlayer == 1) {
+              player1Score++;
+            } else {
+              player2Score++;
+            }
           } else {
-            player2Score++;
+            // VS Computer mode
+            if (isAuto) {
+              player2Score++; // AI scores
+            } else {
+              player1Score++; // Human scores
+            }
           }
         }
-        // Switch to the other player
-        currentPlayer = currentPlayer == 1 ? 2 : 1;
-        // Reset turn timer for the new player
-        _startTurnTimer();
+        
+        if (widget.isMultiplayer) {
+          // Switch to the other player only in local multiplayer
+          currentPlayer = currentPlayer == 1 ? 2 : 1;
+          // Reset turn timer for the new player
+          _startTurnTimer();
+        }
       }
       // ✅ Victory check — works for ALL levels
       if (_isPrisonEmpty()) {
-        // Determine winner (the player who just made the winning move)
-        winner = widget.isMultiplayer ? (currentPlayer == 1 ? 2 : 1) : 0;
+        // Determine winner based on who has the higher score
+        if (widget.isMultiplayer || widget.isVsComputer) {
+          if (player1Score > player2Score) {
+            winner = 1; // Player 1 (or Human) wins
+          } else if (player2Score > player1Score) {
+            winner = 2; // Player 2 (or AI) wins
+          } else {
+            winner = 3; // Tie
+          }
+        } else {
+          winner = 0; // Solo win
+        }
+        
         _unlockNextLevel(widget.level + 1);
         if (mounted) setState(() { hasWon = true; _isAutoPlaying = false; });
         // Navigate to distinct victory screen
@@ -400,6 +483,7 @@ class _GamePageState extends State<GamePage> {
                 winner: winner,
                 player1Score: player1Score,
                 player2Score: player2Score,
+                isVsComputer: widget.isVsComputer,
               ),
             ),
           );
@@ -408,6 +492,41 @@ class _GamePageState extends State<GamePage> {
       }
     });
 
+    // In VS Computer mode trigger AI move after human's turn
+    if (widget.isVsComputer && !hasWon && !isAuto) {
+      _performAIMove();
+    }
+  }
+
+  /// Called automatically after the human player's move in VS Computer mode.
+  Future<void> _performAIMove() async {
+    if (!mounted || hasWon || moves <= 0) return;
+    
+    setState(() { _isAITurn = true; });
+    
+    // Brief delay to simulate AI "thinking"
+    await Future.delayed(const Duration(milliseconds: 600));
+    
+    if (!mounted || hasWon) {
+      if (mounted) setState(() { _isAITurn = false; });
+      return;
+    }
+
+    final aiMove = AIPlayer.getBestMove(
+      board: List<int>.from(haveClone),
+      prisonIndices: currentPrison,
+      level: widget.level,
+      difficulty: DifficultyLevel.medium,
+    );
+    if (aiMove != null) {
+      if (mounted) setState(() { position = aiMove.position; });
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (mounted) _onPebbleTap(aiMove.index, widget.level > 10 ? 15 : 8, isAuto: true);
+    }
+    
+    if (mounted) {
+      setState(() { _isAITurn = false; });
+    }
   }
 
   void _undoMove() {

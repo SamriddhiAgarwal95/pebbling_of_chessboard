@@ -10,13 +10,14 @@ var size, height, width;
 class LevelCircleWidget extends StatelessWidget {
   final int levelNumber;
   final bool isMultiplayer;
-  // Initialize to a large number to unlock all levels by default
+  final bool isVsComputer;
   static ValueNotifier<int> unlockedLevelNotifier = ValueNotifier<int>(395);
 
   const LevelCircleWidget({
     Key? key,
     required this.levelNumber,
     this.isMultiplayer = false,
+    this.isVsComputer = false,
   }) : super(key: key);
 
   @override
@@ -28,19 +29,22 @@ class LevelCircleWidget extends StatelessWidget {
     return ValueListenableBuilder<int>(
       valueListenable: unlockedLevelNotifier,
       builder: (context, unlockedLevel, child) {
-        // Force isLocked to false to ensure all levels are unlocked as requested
-        bool isLocked = false; 
+        bool isLocked = false;
 
         return GestureDetector(
           child: Container(
             decoration: const BoxDecoration(
-              color: Colors.black, // border color
+              color: Colors.black,
               shape: BoxShape.circle,
             ),
             height: height * 0.17,
             width: width * 0.17,
             child: CircleAvatar(
-              backgroundColor: isLocked ? Colors.grey : const Color(0xff86B5EC),
+              backgroundColor: isLocked
+                  ? Colors.grey
+                  : isVsComputer
+                      ? const Color(0xff7EC8E3) // distinct color for VS Computer
+                      : const Color(0xff86B5EC),
               child: isLocked
                   ? Icon(Icons.lock, color: Colors.black, size: width * 0.08)
                   : textWidget(levelNumber.toString(), Colors.black, Colors.black,
@@ -52,9 +56,12 @@ class LevelCircleWidget extends StatelessWidget {
               await Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (context) => LevelScreen(level: levelNumber, isMultiplayer: isMultiplayer)),
+                    builder: (context) => LevelScreen(
+                          level: levelNumber,
+                          isMultiplayer: isMultiplayer,
+                          isVsComputer: isVsComputer,
+                        )),
               );
-              // Refresh is not strictly necessary if all are unlocked, but kept for consistency
               final prefs = await SharedPreferences.getInstance();
               unlockedLevelNotifier.value = prefs.getInt('unlockedLevel') ?? 395;
             } else {

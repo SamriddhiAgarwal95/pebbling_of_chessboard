@@ -7,8 +7,9 @@ import 'home.dart';
 class LevelScreen extends StatefulWidget {
   final int level;
   final bool isMultiplayer;
+  final bool isVsComputer;
 
-  const LevelScreen({Key? key, required this.level, this.isMultiplayer = false}) : super(key: key);
+  const LevelScreen({Key? key, required this.level, this.isMultiplayer = false, this.isVsComputer = false}) : super(key: key);
 
   @override
   State<LevelScreen> createState() => LevelScreenState();
@@ -123,7 +124,11 @@ class LevelScreenState extends State<LevelScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => GamePage(level: widget.level, isMultiplayer: widget.isMultiplayer),
+                              builder: (context) => GamePage(
+                                level: widget.level,
+                                isMultiplayer: widget.isMultiplayer,
+                                isVsComputer: widget.isVsComputer,
+                              ),
                             ),
                           );
                         },
@@ -160,8 +165,11 @@ class LevelScreenState extends State<LevelScreen> {
                                 Navigator.pushReplacement(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) =>
-                                        LevelScreen(level: widget.level - 1),
+                                    builder: (context) => LevelScreen(
+                                      level: widget.level - 1,
+                                      isMultiplayer: widget.isMultiplayer,
+                                      isVsComputer: widget.isVsComputer,
+                                    ),
                                   ),
                                 );
                               }
@@ -226,8 +234,11 @@ class LevelScreenState extends State<LevelScreen> {
                               Navigator.pushReplacement(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) =>
-                                      GamePage(level: widget.level),
+                                  builder: (context) => GamePage(
+                                    level: widget.level,
+                                    isMultiplayer: widget.isMultiplayer,
+                                    isVsComputer: widget.isVsComputer,
+                                  ),
                                 ),
                               );
                             },

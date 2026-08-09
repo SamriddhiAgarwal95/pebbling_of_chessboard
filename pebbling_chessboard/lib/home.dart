@@ -5,56 +5,76 @@ import 'package:pebbling_chessboard/widgets/TextWidget.dart';
 import 'help_screen.dart';
 import 'package:pebbling_chessboard/widgets/background.dart';
 
-
-
 class MyHomePage extends StatefulWidget {
   @override
   State<MyHomePage> createState() => _MyHomePageState();
 }
+
 class _MyHomePageState extends State<MyHomePage> {
-  var size,height,width;
+  var size, height, width;
 
   @override
   Widget build(BuildContext context) {
-    // SystemChrome.setPreferredOrientations([
-    //   DeviceOrientation.landscapeLeft,
-    //   DeviceOrientation.landscapeRight,
-    // ]);
     size = MediaQuery.of(context).size;
     height = size.height;
     width = size.width;
     return Scaffold(
       body: SizedBox(
-        height: height, width: width,
+        height: height,
+        width: width,
         child: BackgroundWidget(
           child: Column(
             children: [
-              SizedBox(height: height*0.08,),
+              SizedBox(height: height * 0.08),
               getLogo(),
-              SizedBox(height: height*0.03),
-                ButtonWidget(title: 'Play',onPressed: (){
+              SizedBox(height: height * 0.03),
+              ButtonWidget(
+                title: 'Play',
+                onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const SelectLevelScreen(isMultiplayer: false)),
+                    MaterialPageRoute(
+                        builder: (context) =>
+                            const SelectLevelScreen(isMultiplayer: false)),
                   );
                 },
-                  ),
-                const SizedBox(height: 20),
-                // Local Play button
-                ButtonWidget(title: 'Local Play',onPressed: (){
+              ),
+              const SizedBox(height: 20),
+              // Local Play button
+              ButtonWidget(
+                title: 'Local Play',
+                onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const SelectLevelScreen(isMultiplayer: true)),
+                    MaterialPageRoute(
+                        builder: (context) =>
+                            const SelectLevelScreen(isMultiplayer: true)),
                   );
                 },
-                  ),
-              SizedBox(height: height*0.03),
-              ButtonWidget(title: 'Help',onPressed: (){
+              ),
+              SizedBox(height: height * 0.03),
+              // VS Computer button — opens level selection with isVsComputer flag
+              ButtonWidget(
+                title: 'Play with AI',
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) =>
+                            const SelectLevelScreen(isVsComputer: true)),
+                  );
+                },
+              ),
+              const SizedBox(height: 20),
+              ButtonWidget(
+                title: 'Help',
+                onPressed: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(builder: (context) => const HelpScreen()),
                   );
-                },)
+                },
+              ),
             ],
           ),
         ),
@@ -62,23 +82,28 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  Widget getLogo(){
+  Widget getLogo() {
     return Stack(
       children: [
         Positioned(
-            child: Image.asset("assets/images/chessboard.png",height: height*0.43, width: width*0.9,)
+            child: Image.asset(
+          "assets/images/chessboard.png",
+          height: height * 0.43,
+          width: width * 0.9,
+        )),
+        Positioned(
+          top: height * 0.035,
+          left: width * 0.23,
+          child: textWidget(
+              "Can you", Color(0xffE1B310), Color(0xff8D0404), width * 0.15, 17, "Flavors"),
         ),
         Positioned(
-          top: height*0.035,
-          left: width*0.23,
-          child: textWidget("Can you", Color(0xffE1B310), Color(0xff8D0404), width*0.15, 17, "Flavors"),),
-        Positioned(
-          top: height*0.092,
-          left: width*0.23,
-          child: textWidget("Escape?", Color(0xffE1B310), Color(0xff8D0404), width*0.15, 17, "Flavors"),),
+          top: height * 0.092,
+          left: width * 0.23,
+          child: textWidget(
+              "Escape?", Color(0xffE1B310), Color(0xff8D0404), width * 0.15, 17, "Flavors"),
+        ),
       ],
     );
   }
-
-
 }

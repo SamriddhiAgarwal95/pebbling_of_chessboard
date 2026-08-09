@@ -4,8 +4,9 @@ import 'package:pebbling_chessboard/widgets/level_circle.dart';
 
 class SelectLevelScreen extends StatefulWidget {
   final bool isMultiplayer;
+  final bool isVsComputer;
 
-  const SelectLevelScreen({Key? key, this.isMultiplayer = false}) : super(key: key);
+  const SelectLevelScreen({Key? key, this.isMultiplayer = false, this.isVsComputer = false}) : super(key: key);
 
   @override
   State<SelectLevelScreen> createState() => SelectLevelScreenState();
@@ -18,7 +19,6 @@ class SelectLevelScreenState extends State<SelectLevelScreen> {
   @override
   void initState() {
     super.initState();
-    // Scroll to the bottom (Level 1) after a short delay
     Timer(const Duration(milliseconds: 100), () {
       if (_scrollController.hasClients) {
         _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
@@ -32,7 +32,6 @@ class SelectLevelScreenState extends State<SelectLevelScreen> {
     height = size.height;
     width = size.width;
 
-    // Original positions for levels 1-15
     final List<double> bottoms = [80, 150, 225, 280, 350, 420, 510, 600, 680, 750, 850, 950, 1080, 1150, 1260];
     final List<double> lefts = [0.51, 0.3, 0.546, 0.3, 0.5, 0.27, 0.49, 0.3, 0.47, 0.27, 0.468, 0.32, 0.25, 0.5, 0.46];
     final List<double> batchOffsets = List.generate(27, (index) => index * 1335.0);
@@ -51,13 +50,11 @@ class SelectLevelScreenState extends State<SelectLevelScreen> {
           controller: _scrollController,
           child: Stack(
             children: [
-              // 1. Path Background layer
               Center(
                 child: Column(
                   children: List.generate(27, (index) => Image.asset("assets/images/path2_new.png")),
                 ),
               ),
-              // 2. Decorative Elements layer
               Positioned(bottom: height * 0.4, left: width * 0.6, child: Image.asset("assets/images/stone.png", width: 250, height: 250)),
               Positioned(bottom: height * 0.7, right: width * 0.6, child: Image.asset("assets/images/stone.png", width: 250, height: 250)),
               Positioned(bottom: height * 1.3, left: width * 0.5, child: Image.asset("assets/images/stone.png", width: 250, height: 250)),
@@ -81,7 +78,6 @@ class SelectLevelScreenState extends State<SelectLevelScreen> {
                   child: Image.asset("assets/images/grass.png", fit: BoxFit.cover),
                 ),
               ),
-              // 3. Level Circles layer (Rendered last for full clickability)
               ...List.generate(395, (index) {
                 int levelNum = index + 1;
                 int batchIndex = index ~/ 15;
@@ -90,7 +86,11 @@ class SelectLevelScreenState extends State<SelectLevelScreen> {
                 return Positioned(
                   bottom: batchOffsets[batchIndex] + bottoms[innerIndex],
                   left: width * lefts[innerIndex],
-                  child: LevelCircleWidget(levelNumber: levelNum, isMultiplayer: widget.isMultiplayer),
+                  child: LevelCircleWidget(
+                    levelNumber: levelNum,
+                    isMultiplayer: widget.isMultiplayer,
+                    isVsComputer: widget.isVsComputer,
+                  ),
                 );
               }),
             ],

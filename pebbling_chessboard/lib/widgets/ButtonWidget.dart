@@ -27,12 +27,15 @@ class ButtonWidget extends StatelessWidget{
                     borderRadius: BorderRadius.circular(40.0),
                   )
                   )),
-          child: Text(
-            title,
-            style: TextStyle(
-              fontSize: width*0.1,
-              fontWeight: FontWeight.w300,
-              color: Colors.black,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              title,
+              style: TextStyle(
+                fontSize: width*0.1,
+                fontWeight: FontWeight.w300,
+                color: Colors.black,
+              ),
             ),
           ),
           onPressed: onPressed
