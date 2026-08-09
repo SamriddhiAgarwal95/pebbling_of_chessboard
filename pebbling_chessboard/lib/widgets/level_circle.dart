@@ -9,12 +9,14 @@ var size, height, width;
 
 class LevelCircleWidget extends StatelessWidget {
   final int levelNumber;
+  final bool isMultiplayer;
   // Initialize to a large number to unlock all levels by default
   static ValueNotifier<int> unlockedLevelNotifier = ValueNotifier<int>(395);
 
   const LevelCircleWidget({
     Key? key,
     required this.levelNumber,
+    this.isMultiplayer = false,
   }) : super(key: key);
 
   @override
@@ -49,7 +51,8 @@ class LevelCircleWidget extends StatelessWidget {
             if (!isLocked) {
               await Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => LevelScreen(level: levelNumber)),
+                MaterialPageRoute(
+                    builder: (context) => LevelScreen(level: levelNumber, isMultiplayer: isMultiplayer)),
               );
               // Refresh is not strictly necessary if all are unlocked, but kept for consistency
               final prefs = await SharedPreferences.getInstance();

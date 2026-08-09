@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'victory_screen.dart';
 import 'package:pebbling_chessboard/prison/prison.dart';
 import 'package:pebbling_chessboard/widgets/TextWidget.dart';
 import 'package:pebbling_chessboard/widgets/particle_effect.dart';
@@ -8,7 +10,8 @@ import 'solver.dart';
 
 class GamePage extends StatefulWidget {
   final int level;
-  const GamePage({Key? key, required this.level}) : super(key: key);
+  final bool isMultiplayer;
+  const GamePage({Key? key, required this.level, this.isMultiplayer = false}) : super(key: key);
 
   @override
   State<GamePage> createState() => _GamePageState();
@@ -17,6 +20,9 @@ class GamePage extends StatefulWidget {
 class _GamePageState extends State<GamePage> {
   late List<int> haveClone;
   late List<int> currentPrison;
+  Timer? _turnTimer;
+  int _turnTimeRemaining = 0;
+  int winner = 0;
   var size, height, width;
   int moves = 0;
   int position = 1; 
@@ -24,6 +30,10 @@ class _GamePageState extends State<GamePage> {
   int _hintIndex = -1;
   bool _isAutoPlaying = false;
   List<Map<String, dynamic>> _moveHistory = [];
+  // Multiplayer tracking
+  int currentPlayer = 1;
+  int player1Score = 0;
+  int player2Score = 0;
 
   // Particle effect state
   List<ParticleInfo> _particleInfos = [];
@@ -35,11 +45,41 @@ class _GamePageState extends State<GamePage> {
   }
 
   @override
+  void dispose() {
+    _turnTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startTurnTimer() {
+    // Cancel any existing timer
+    _turnTimer?.cancel();
+    // Set turn time (e.g., 15 seconds)
+    _turnTimeRemaining = 15;
+    _turnTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        if (_turnTimeRemaining > 0) {
+          _turnTimeRemaining--;
+        } else {
+          // Time's up: switch player and restart timer
+          timer.cancel();
+          currentPlayer = currentPlayer == 1 ? 2 : 1;
+          _startTurnTimer();
+        }
+      });
+    });
+  }
+
+  @override
   void initState() {
     super.initState();
     // Grid: 8x8 (64) for levels 1-10, 15x8 (120) for levels 11+
     haveClone = widget.level > 10 ? List.generate(120, (index) => 0) : List.generate(64, (index) => 0);
     _initializeLevel();
+    if (widget.isMultiplayer) _startTurnTimer();
   }
 
   void _initializeLevel() {
@@ -95,7 +135,30 @@ class _GamePageState extends State<GamePage> {
             child: Center(
               child: SingleChildScrollView(
                 child: Column(
-                  children: [
+                  children: [        // Turn indicator for multiplayer
+        if (widget.isMultiplayer)
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  "Player $currentPlayer's turn",
+                  style: const TextStyle(color: Colors.white, fontSize: 20),
+                ),
+                const SizedBox(width: 20),
+                Text("Score 1: $player1Score", style: const TextStyle(color: Colors.white)),
+                const SizedBox(width: 10),
+                Text("Score 2: $player2Score", style: const TextStyle(color: Colors.white)),
+              ],
+            ),
+          ),
+        // Turn timer display for multiplayer
+        if (widget.isMultiplayer)
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text('Turn time: $_turnTimeRemaining s', style: const TextStyle(color: Colors.white, fontSize: 16)),
+          ),    
                     SizedBox(height: widget.level > 10 ? 10 : height * 0.1),
                     SizedBox(
                         width: widget.level > 10 ? 900 : 400,
@@ -154,7 +217,7 @@ class _GamePageState extends State<GamePage> {
                                         const SizedBox(height: 20),
                                         ElevatedButton(
                                           onPressed: () {
-                                            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => GamePage(level: widget.level + 1)));
+                                            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => GamePage(level: widget.level + 1, isMultiplayer: widget.isMultiplayer)));
                                           },
                                           style: ElevatedButton.styleFrom(backgroundColor: const Color(0xffFFA51E)),
                                           child: const Text("Next Level", style: TextStyle(color: Colors.black, fontSize: 20)),
@@ -177,14 +240,15 @@ class _GamePageState extends State<GamePage> {
                                           onPressed: _initializeLevel,
                                           child: const Text("Retry", style: TextStyle(fontSize: 18)),
                                         ),
-                                        ElevatedButton(
-                                          onPressed: () {
-                                            _unlockNextLevel(widget.level + 1);
-                                            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => GamePage(level: widget.level + 1)));
-                                          },
-                                          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
-                                          child: const Text("Skip Level", style: TextStyle(fontSize: 18, color: Colors.white)),
-                                        ),
+                                        if (!widget.isMultiplayer)
+                                          ElevatedButton(
+                                            onPressed: () {
+                                              _unlockNextLevel(widget.level + 1);
+                                              Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => GamePage(level: widget.level + 1)));
+                                            },
+                                            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+                                            child: const Text("Skip Level", style: TextStyle(fontSize: 18, color: Colors.white)),
+                                          ),
                                       ],
                                     ),
                                   ),
@@ -288,25 +352,59 @@ class _GamePageState extends State<GamePage> {
     }
 
     // Record current state before performing move for undo
-    _moveHistory.add({
-      'haveClone': List<int>.from(haveClone),
-      'moves': moves,
-      'position': position,
-      'hasWon': hasWon,
-    });
+      _moveHistory.add({
+        'haveClone': List<int>.from(haveClone),
+        'moves': moves,
+        'position': position,
+        'hasWon': hasWon,
+        'currentPlayer': currentPlayer,
+        'player1Score': player1Score,
+        'player2Score': player2Score,
+      });
 
     // Add particle effect at original pebble location
     _addParticleInfo(r, c, cols);
     setState(() {
-      haveClone[index] = 0;
-      haveClone[t1!] = 1;
-      haveClone[t2!] = 1;
-      moves--;
-      
+        haveClone[index] = 0;
+        haveClone[t1!] = 1;
+        haveClone[t2!] = 1;
+        moves--;
+        // Update scores and switch turn in multiplayer mode
+      // Multiplayer logic: score only when a pebble leaves the prison
+      if (widget.isMultiplayer) {
+        // Increment score if the moved pebble originated from the prison area
+        if (currentPrison.contains(index)) {
+          if (currentPlayer == 1) {
+            player1Score++;
+          } else {
+            player2Score++;
+          }
+        }
+        // Switch to the other player
+        currentPlayer = currentPlayer == 1 ? 2 : 1;
+        // Reset turn timer for the new player
+        _startTurnTimer();
+      }
       // ✅ Victory check — works for ALL levels
       if (_isPrisonEmpty()) {
+        // Determine winner (the player who just made the winning move)
+        winner = widget.isMultiplayer ? (currentPlayer == 1 ? 2 : 1) : 0;
         _unlockNextLevel(widget.level + 1);
         if (mounted) setState(() { hasWon = true; _isAutoPlaying = false; });
+        // Navigate to distinct victory screen
+        WidgetsBinding.instance.addPostFrameCallback((_){
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => VictoryScreen(
+                winner: winner,
+                player1Score: player1Score,
+                player2Score: player2Score,
+              ),
+            ),
+          );
+        });
+        return;
       }
     });
 
@@ -316,11 +414,15 @@ class _GamePageState extends State<GamePage> {
     if (_moveHistory.isEmpty) return;
     setState(() {
       final lastState = _moveHistory.removeLast();
-      haveClone = List<int>.from(lastState['haveClone']);
-      moves = lastState['moves'];
-      position = lastState['position'];
-      hasWon = lastState['hasWon'];
-      _particleInfos.clear(); // Optional: clear particles on undo
+        haveClone = List<int>.from(lastState['haveClone']);
+        moves = lastState['moves'];
+        position = lastState['position'];
+        hasWon = lastState['hasWon'];
+        // Restore multiplayer state
+        currentPlayer = lastState['currentPlayer'];
+        player1Score = lastState['player1Score'];
+        player2Score = lastState['player2Score'];
+        _particleInfos.clear(); // Optional: clear particles on undo
     });
   }
 

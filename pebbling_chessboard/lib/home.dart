@@ -32,13 +32,22 @@ class _MyHomePageState extends State<MyHomePage> {
               SizedBox(height: height*0.08,),
               getLogo(),
               SizedBox(height: height*0.03),
-              ButtonWidget(title: 'Play',onPressed: (){
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => SelectLevelScreen()),
-                );
-              },
-                ),
+                ButtonWidget(title: 'Play',onPressed: (){
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const SelectLevelScreen(isMultiplayer: false)),
+                  );
+                },
+                  ),
+                const SizedBox(height: 20),
+                // Local Play button
+                ButtonWidget(title: 'Local Play',onPressed: (){
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const SelectLevelScreen(isMultiplayer: true)),
+                  );
+                },
+                  ),
               SizedBox(height: height*0.03),
               ButtonWidget(title: 'Help',onPressed: (){
                   Navigator.push(

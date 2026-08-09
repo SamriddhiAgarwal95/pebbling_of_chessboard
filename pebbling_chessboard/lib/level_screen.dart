@@ -6,8 +6,9 @@ import 'home.dart';
 
 class LevelScreen extends StatefulWidget {
   final int level;
+  final bool isMultiplayer;
 
-  const LevelScreen({Key? key, required this.level}) : super(key: key);
+  const LevelScreen({Key? key, required this.level, this.isMultiplayer = false}) : super(key: key);
 
   @override
   State<LevelScreen> createState() => LevelScreenState();
@@ -122,7 +123,7 @@ class LevelScreenState extends State<LevelScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => GamePage(level: widget.level),
+                              builder: (context) => GamePage(level: widget.level, isMultiplayer: widget.isMultiplayer),
                             ),
                           );
                         },
